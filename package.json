@@ -1,0 +1,31 @@
+{
+  "name": "channelbase",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Autonomous AI Channel Builder — a Channel Operating System",
+  "engines": {
+    "node": ">=20.0.0"
+  },
+  "packageManager": "pnpm@9.15.0",
+  "scripts": {
+    "build": "turbo run build",
+    "dev": "turbo run dev --parallel",
+    "lint": "turbo run lint",
+    "typecheck": "turbo run typecheck",
+    "test": "turbo run test",
+    "clean": "turbo run clean",
+    "db:generate": "pnpm --filter @channelbase/database db:generate",
+    "db:migrate": "pnpm --filter @channelbase/database db:migrate",
+    "db:push": "pnpm --filter @channelbase/database db:push",
+    "db:seed": "pnpm --filter @channelbase/database db:seed",
+    "db:studio": "pnpm --filter @channelbase/database db:studio",
+    "infra:up": "docker compose up -d",
+    "infra:down": "docker compose down"
+  },
+  "devDependencies": {
+    "turbo": "^2.3.0",
+    "typescript": "^5.7.2",
+    "prettier": "^3.4.2",
+    "@types/node": "^22.10.0"
+  }
+}

@@ -1,0 +1,859 @@
+// CHANNELBASE — Prisma schema
+// See docs/DATABASE.md for an entity-relationship overview.
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// =============================================================================
+// ENUMS
+// =============================================================================
+
+enum UserRole {
+  USER
+  ADMIN
+}
+
+enum ChannelStatus {
+  DRAFT
+  BUILDING
+  ACTIVE
+  PAUSED
+  ARCHIVED
+}
+
+enum ApprovalMode {
+  MANUAL
+  AUTOPILOT
+}
+
+enum Platform {
+  YOUTUBE
+  TIKTOK
+  INSTAGRAM
+  FACEBOOK
+}
+
+enum ContentType {
+  LONG_VIDEO
+  SHORT
+  TRAILER
+  TEASER
+  COMMUNITY_POST
+}
+
+enum EpisodeStatus {
+  IDEA
+  PLANNED
+  SCRIPTING
+  SCRIPT_REVIEW
+  SCENE_BREAKDOWN
+  ASSET_GENERATION
+  VOICE_GENERATION
+  VIDEO_GENERATION
+  ASSEMBLY
+  QUALITY_REVIEW
+  READY
+  SCHEDULED
+  PUBLISHED
+  FAILED
+}
+
+enum AssetType {
+  IMAGE
+  VIDEO
+  AUDIO
+  VOICE
+  MUSIC
+  SFX
+  THUMBNAIL
+  LOGO
+  BANNER
+  AVATAR
+  SUBTITLE
+  FINAL_VIDEO
+}
+
+enum AssetStatus {
+  QUEUED
+  GENERATING
+  READY
+  FAILED
+}
+
+enum JobType {
+  CREATE_CHANNEL
+  GENERATE_BRAND
+  GENERATE_CHARACTERS
+  GENERATE_CONTENT_PLAN
+  GENERATE_SCRIPT
+  BREAKDOWN_EPISODE
+  GENERATE_IMAGE
+  GENERATE_VIDEO
+  GENERATE_VOICE
+  GENERATE_MUSIC
+  ASSEMBLE_VIDEO
+  GENERATE_THUMBNAIL
+  GENERATE_METADATA
+  PUBLISH_VIDEO
+}
+
+enum JobRunStatus {
+  PENDING
+  RUNNING
+  COMPLETED
+  FAILED
+  RETRYING
+}
+
+enum CreditTransactionType {
+  PURCHASE
+  SUBSCRIPTION_GRANT
+  GENERATION
+  REFUND
+  MANUAL_ADJUSTMENT
+}
+
+enum ReviewDecision {
+  APPROVED
+  REJECTED
+  REGENERATE
+}
+
+enum CharacterReferenceKind {
+  FRONT
+  SIDE
+  FULL_BODY
+  EXPRESSION_SHEET
+  POSE
+}
+
+enum SubscriptionStatus {
+  ACTIVE
+  PAST_DUE
+  CANCELED
+  TRIALING
+}
+
+// =============================================================================
+// IDENTITY & ACCESS
+// =============================================================================
+
+model User {
+  id           String    @id @default(cuid())
+  email        String    @unique
+  passwordHash String?
+  name         String?
+  role         UserRole  @default(USER)
+  googleId     String?   @unique
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+  deletedAt    DateTime?
+
+  sessions         Session[]
+  channels         Channel[]
+  platformAccounts PlatformAccount[]
+  subscriptions    Subscription[]
+  creditWallet     CreditWallet?
+  usageEvents      UsageEvent[]
+  auditLogs        AuditLog[]
+
+  @@index([email])
+}
+
+model Session {
+  id        String   @id @default(cuid())
+  userId    String
+  tokenHash String   @unique
+  userAgent String?
+  ipAddress String?
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+}
+
+// =============================================================================
+// CHANNEL CORE
+// =============================================================================
+
+model Channel {
+  id           String        @id @default(cuid())
+  userId       String
+  name         String
+  tagline      String?
+  draftPrompt  String?
+  status       ChannelStatus @default(DRAFT)
+  approvalMode ApprovalMode  @default(MANUAL)
+  language     String        @default("en")
+  countryTarget String?
+  primaryPlatform Platform   @default(YOUTUBE)
+  monthlySpendLimitUsd Decimal? @db.Decimal(10, 2)
+  avatarAssetId String?
+  createdAt    DateTime      @default(now())
+  updatedAt    DateTime      @updatedAt
+  deletedAt    DateTime?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  specVersions     ChannelSpecVersion[]
+  brandBibles      BrandBible[]
+  storyBibles      StoryBible[]
+  characters       Character[]
+  worlds           World[]
+  contentPlans     ContentPlan[]
+  series           Series[]
+  episodes         Episode[]
+  assets           Asset[]
+  platformAccounts PlatformAccount[]
+  insights         ChannelInsight[]
+  usageEvents      UsageEvent[]
+  jobRuns          JobRun[]
+
+  @@index([userId])
+  @@index([status])
+}
+
+/// Immutable, versioned snapshots of the Channel Brain's structured output.
+/// version 1 is always the original baseline generated from the user's prompt.
+model ChannelSpecVersion {
+  id           String   @id @default(cuid())
+  channelId    String
+  version      Int
+  sourcePrompt String
+  spec         Json
+  isBaseline   Boolean  @default(false)
+  createdAt    DateTime @default(now())
+
+  channel Channel @relation(fields: [channelId], references: [id], onDelete: Cascade)
+
+  @@unique([channelId, version])
+  @@index([channelId])
+}
+
+model BrandBible {
+  id        String   @id @default(cuid())
+  channelId String
+  version   Int      @default(1)
+  data      Json
+  createdAt DateTime @default(now())
+
+  channel Channel @relation(fields: [channelId], references: [id], onDelete: Cascade)
+
+  @@unique([channelId, version])
+  @@index([channelId])
+}
+
+model StoryBible {
+  id        String   @id @default(cuid())
+  channelId String
+  version   Int      @default(1)
+  data      Json
+  createdAt DateTime @default(now())
+
+  channel Channel @relation(fields: [channelId], references: [id], onDelete: Cascade)
+
+  @@unique([channelId, version])
+  @@index([channelId])
+}
+
+// =============================================================================
+// CHARACTERS
+// =============================================================================
+
+model Character {
+  id                  String    @id @default(cuid())
+  channelId           String
+  name                String
+  role                String
+  species             String
+  genderPresentation  String?
+  ageDescription      String?
+  heightDescription   String?
+  bodyDescription      String?
+  faceDescription      String?
+  hairDescription      String?
+  eyeDescription       String?
+  clothingDescription  String?
+  accessories          Json      @default("[]")
+  personality          Json      @default("[]")
+  strengths            Json      @default("[]")
+  weaknesses           Json      @default("[]")
+  catchphrases         Json      @default("[]")
+  speechStyle          String?
+  voiceProfileId       String?
+  visualPrompt         String
+  negativePrompt       String    @default("")
+  consistencyRules     Json      @default("[]")
+  doNotChangeRules     Json      @default("[]")
+  createdAt            DateTime  @default(now())
+  updatedAt            DateTime  @updatedAt
+  deletedAt            DateTime?
+
+  channel    Channel              @relation(fields: [channelId], references: [id], onDelete: Cascade)
+  references CharacterReference[]
+  assets     Asset[]
+  scenes     SceneCharacter[]
+
+  @@index([channelId])
+}
+
+model CharacterReference {
+  id          String                  @id @default(cuid())
+  characterId String
+  kind        CharacterReferenceKind
+  assetId     String                  @unique
+  createdAt   DateTime                @default(now())
+
+  character Character @relation(fields: [characterId], references: [id], onDelete: Cascade)
+  asset     Asset     @relation(fields: [assetId], references: [id], onDelete: Cascade)
+
+  @@index([characterId])
+}
+
+// =============================================================================
+// WORLD BIBLE
+// =============================================================================
+
+model World {
+  id          String   @id @default(cuid())
+  channelId   String
+  name        String
+  description String
+  rules       Json     @default("[]")
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  channel   Channel    @relation(fields: [channelId], references: [id], onDelete: Cascade)
+  locations Location[]
+
+  @@index([channelId])
+}
+
+model Location {
+  id                    String   @id @default(cuid())
+  worldId               String
+  name                  String
+  environmentDescription String
+  architecture          String?
+  lighting              String
+  colorPalette          Json     @default("[]")
+  weather               String?
+  timeOfDayRules        String?
+  importantObjects      Json     @default("[]")
+  visualPrompt          String
+  negativePrompt        String   @default("")
+  createdAt             DateTime @default(now())
+  updatedAt             DateTime @updatedAt
+
+  world  World   @relation(fields: [worldId], references: [id], onDelete: Cascade)
+  scenes Scene[]
+  assets Asset[]
+
+  @@index([worldId])
+}
+
+// =============================================================================
+// CONTENT PLANNING
+// =============================================================================
+
+model ContentPlan {
+  id          String   @id @default(cuid())
+  channelId   String
+  periodStart DateTime
+  periodEnd   DateTime
+  createdAt   DateTime @default(now())
+
+  channel Channel           @relation(fields: [channelId], references: [id], onDelete: Cascade)
+  items   ContentPlanItem[]
+
+  @@index([channelId])
+}
+
+model ContentPlanItem {
+  id                 String      @id @default(cuid())
+  contentPlanId      String
+  titleIdea          String
+  concept             String
+  contentPillar        String
+  series              String?
+  format              ContentType
+  targetDurationSeconds Int
+  hook                String
+  educationalGoal     String?
+  emotionalGoal       String?
+  targetPublishDate   DateTime
+  priority            Int         @default(3)
+  createdAt           DateTime    @default(now())
+
+  contentPlan ContentPlan @relation(fields: [contentPlanId], references: [id], onDelete: Cascade)
+  episode     Episode?
+
+  @@index([contentPlanId])
+}
+
+model Series {
+  id          String   @id @default(cuid())
+  channelId   String
+  name        String
+  description String?
+  createdAt   DateTime @default(now())
+
+  channel  Channel   @relation(fields: [channelId], references: [id], onDelete: Cascade)
+  episodes Episode[]
+
+  @@index([channelId])
+}
+
+// =============================================================================
+// EPISODES / SCENES / SHOTS
+// =============================================================================
+
+model Episode {
+  id                    String        @id @default(cuid())
+  channelId             String
+  seriesId              String?
+  contentPlanItemId     String?       @unique
+  title                 String
+  format                ContentType   @default(LONG_VIDEO)
+  status                EpisodeStatus @default(IDEA)
+  targetDurationSeconds Int
+  targetPublishDate     DateTime?
+  hook                  String?
+  summary               String?
+  script                Json?
+  metadata              Json?
+  finalAssetId          String?
+  lastError             String?
+  createdAt             DateTime      @default(now())
+  updatedAt             DateTime      @updatedAt
+  deletedAt             DateTime?
+
+  channel         Channel          @relation(fields: [channelId], references: [id], onDelete: Cascade)
+  series          Series?          @relation(fields: [seriesId], references: [id])
+  contentPlanItem ContentPlanItem? @relation(fields: [contentPlanItemId], references: [id])
+
+  scenes           Scene[]
+  assets           Asset[]
+  jobRuns          JobRun[]
+  qualityReviews   QualityReview[]
+  publishedContent PublishedContent[]
+  usageEvents      UsageEvent[]
+
+  @@index([channelId])
+  @@index([status])
+  @@index([seriesId])
+}
+
+model Scene {
+  id                   String          @id @default(cuid())
+  episodeId            String
+  sceneNumber          Int
+  durationEstimateSeconds Int
+  locationId           String?
+  purpose              String
+  action               String
+  dialogue             Json            @default("[]")
+  narration            String?
+  emotion              String
+  visualDescription    String
+  transition           String          @default("cut")
+  continuityNotes      String?
+  directorSpec         Json?
+  reviewDecision       ReviewDecision?
+  createdAt            DateTime        @default(now())
+  updatedAt            DateTime        @updatedAt
+
+  episode    Episode          @relation(fields: [episodeId], references: [id], onDelete: Cascade)
+  location   Location?        @relation(fields: [locationId], references: [id])
+  characters SceneCharacter[]
+  shots      Shot[]
+  assets     Asset[]
+
+  @@unique([episodeId, sceneNumber])
+  @@index([episodeId])
+  @@index([locationId])
+}
+
+model SceneCharacter {
+  sceneId     String
+  characterId String
+
+  scene     Scene     @relation(fields: [sceneId], references: [id], onDelete: Cascade)
+  character Character @relation(fields: [characterId], references: [id], onDelete: Cascade)
+
+  @@id([sceneId, characterId])
+  @@index([characterId])
+}
+
+model Shot {
+  id                    String   @id @default(cuid())
+  sceneId               String
+  shotNumber            Int
+  shotType              String
+  cameraMovement        String   @default("static")
+  durationEstimateSeconds Float
+  description           String
+  directorSpec          Json?
+  createdAt             DateTime @default(now())
+  updatedAt             DateTime @updatedAt
+
+  scene  Scene   @relation(fields: [sceneId], references: [id], onDelete: Cascade)
+  assets Asset[]
+
+  @@unique([sceneId, shotNumber])
+  @@index([sceneId])
+}
+
+// =============================================================================
+// ASSETS
+// =============================================================================
+
+model Asset {
+  id                  String      @id @default(cuid())
+  channelId           String
+  episodeId           String?
+  sceneId             String?
+  shotId              String?
+  characterId         String?
+  locationId          String?
+  type                AssetType
+  provider            String?
+  externalJobId       String?
+  storageKey          String?
+  url                 String?
+  durationSeconds     Float?
+  width               Int?
+  height              Int?
+  mimeType            String?
+  generationPrompt    String?
+  generationMetadata  Json?
+  cost                Decimal     @default(0) @db.Decimal(10, 4)
+  status              AssetStatus @default(QUEUED)
+  reviewDecision      ReviewDecision?
+  idempotencyKey      String?
+  error               String?
+  createdAt           DateTime    @default(now())
+  updatedAt           DateTime    @updatedAt
+
+  channel   Channel    @relation(fields: [channelId], references: [id], onDelete: Cascade)
+  episode   Episode?   @relation(fields: [episodeId], references: [id], onDelete: Cascade)
+  scene     Scene?     @relation(fields: [sceneId], references: [id], onDelete: Cascade)
+  shot      Shot?      @relation(fields: [shotId], references: [id], onDelete: Cascade)
+  character Character? @relation(fields: [characterId], references: [id], onDelete: Cascade)
+  location  Location?  @relation(fields: [locationId], references: [id], onDelete: Cascade)
+
+  characterReference CharacterReference?
+  generationRequests GenerationRequest[]
+
+  @@unique([idempotencyKey])
+  @@index([channelId])
+  @@index([episodeId])
+  @@index([type])
+  @@index([status])
+}
+
+// =============================================================================
+// JOBS
+// =============================================================================
+
+/// Durable source of truth for background work. BullMQ drives execution;
+/// this table is what the API/UI actually reads for status and progress.
+model JobRun {
+  id             String       @id @default(cuid())
+  jobType        JobType
+  channelId      String?
+  episodeId      String?
+  entityId       String
+  status         JobRunStatus @default(PENDING)
+  progress       Int          @default(0)
+  stage          String?
+  attemptCount   Int          @default(0)
+  maxAttempts    Int          @default(3)
+  error          String?
+  idempotencyKey String?      @unique
+  payload        Json?
+  result         Json?
+  startedAt      DateTime?
+  completedAt    DateTime?
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+
+  channel Channel? @relation(fields: [channelId], references: [id], onDelete: Cascade)
+  episode Episode? @relation(fields: [episodeId], references: [id], onDelete: Cascade)
+
+  generationRequests GenerationRequest[]
+
+  @@index([channelId])
+  @@index([episodeId])
+  @@index([jobType, status])
+}
+
+/// One row per outbound call to an AI provider — the audit trail for cost
+/// and debugging, distinct from JobRun which tracks the higher-level workflow step.
+model GenerationRequest {
+  id              String   @id @default(cuid())
+  jobRunId        String?
+  assetId         String?
+  category        String
+  provider        String
+  requestPayload  Json
+  responsePayload Json?
+  status          AssetStatus @default(QUEUED)
+  costUsd         Decimal  @default(0) @db.Decimal(10, 4)
+  error           String?
+  createdAt       DateTime @default(now())
+  completedAt     DateTime?
+
+  jobRun JobRun? @relation(fields: [jobRunId], references: [id], onDelete: SetNull)
+  asset  Asset?  @relation(fields: [assetId], references: [id], onDelete: SetNull)
+
+  @@index([jobRunId])
+  @@index([assetId])
+  @@index([provider])
+}
+
+/// Admin-configurable provider routing, seeded from packages/config defaults
+/// but editable at runtime without a deploy.
+model ProviderConfig {
+  id                  String   @id @default(cuid())
+  category            String
+  providerName        String
+  displayName         String?
+  enabled             Boolean  @default(true)
+  priority            Int      @default(0)
+  config              Json     @default("{}")
+  costPerUnit         Decimal? @db.Decimal(10, 4)
+  maxDurationSeconds  Int?
+  supportedStyles     Json     @default("[]")
+  fallbackProviderName String?
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @updatedAt
+
+  @@unique([category, providerName])
+  @@index([category])
+}
+
+// =============================================================================
+// PUBLISHING & ANALYTICS
+// =============================================================================
+
+model PlatformAccount {
+  id                    String    @id @default(cuid())
+  userId                String
+  channelId             String?
+  platform              Platform
+  externalAccountId     String
+  channelName           String?
+  encryptedAccessToken  String
+  encryptedRefreshToken String?
+  tokenExpiresAt        DateTime?
+  connectedAt           DateTime  @default(now())
+  createdAt             DateTime  @default(now())
+
+  user    User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  channel Channel? @relation(fields: [channelId], references: [id], onDelete: SetNull)
+
+  publishedContent PublishedContent[]
+
+  @@unique([platform, externalAccountId])
+  @@index([userId])
+  @@index([channelId])
+}
+
+model PublishedContent {
+  id                String   @id @default(cuid())
+  episodeId         String
+  platformAccountId String
+  platform          Platform
+  externalContentId String?
+  url               String?
+  status            String   @default("PENDING")
+  publishedAt       DateTime?
+  createdAt         DateTime @default(now())
+
+  episode         Episode         @relation(fields: [episodeId], references: [id], onDelete: Cascade)
+  platformAccount PlatformAccount @relation(fields: [platformAccountId], references: [id], onDelete: Cascade)
+
+  analyticsSnapshots AnalyticsSnapshot[]
+
+  @@index([episodeId])
+  @@index([platformAccountId])
+}
+
+model AnalyticsSnapshot {
+  id                  String   @id @default(cuid())
+  publishedContentId  String
+  platform            Platform
+  views               Int      @default(0)
+  impressions         Int      @default(0)
+  clickThroughRate    Float?
+  watchTimeSeconds    Float?
+  averageViewDuration Float?
+  retention           Float?
+  likes               Int      @default(0)
+  comments            Int      @default(0)
+  shares              Int      @default(0)
+  subscribersGained   Int      @default(0)
+  revenueUsd          Decimal  @default(0) @db.Decimal(10, 2)
+  capturedAt          DateTime @default(now())
+
+  publishedContent PublishedContent @relation(fields: [publishedContentId], references: [id], onDelete: Cascade)
+
+  @@index([publishedContentId])
+  @@index([capturedAt])
+}
+
+/// Placeholder for future autonomous strategy revision. Populated by
+/// PerformanceLearningEngine once enough AnalyticsSnapshot data exists.
+model ChannelInsight {
+  id                     String   @id @default(cuid())
+  channelId              String
+  highPerformingCharacters Json   @default("[]")
+  highPerformingTopics     Json   @default("[]")
+  strongHooks              Json   @default("[]")
+  weakHooks                Json   @default("[]")
+  bestDuration             Json?
+  bestPublishingTimes      Json   @default("[]")
+  thumbnailPatterns        Json   @default("[]")
+  retentionPatterns        Json   @default("[]")
+  generatedAt              DateTime @default(now())
+
+  channel Channel @relation(fields: [channelId], references: [id], onDelete: Cascade)
+
+  @@index([channelId])
+}
+
+// =============================================================================
+// QUALITY
+// =============================================================================
+
+model QualityReview {
+  id             String   @id @default(cuid())
+  episodeId      String
+  overallScore   Int
+  checks         Json
+  riskCategories Json     @default("[]")
+  notes          String?
+  createdAt      DateTime @default(now())
+
+  episode Episode @relation(fields: [episodeId], references: [id], onDelete: Cascade)
+
+  @@index([episodeId])
+}
+
+// =============================================================================
+// COST & BILLING
+// =============================================================================
+
+model UsageEvent {
+  id                     String   @id @default(cuid())
+  userId                 String
+  channelId              String?
+  episodeId              String?
+  provider               String
+  providerModel          String?
+  operation              String
+  inputTokens            Int?
+  outputTokens           Int?
+  generatedImages        Int?
+  generatedVideoSeconds  Float?
+  generatedAudioSeconds  Float?
+  storageBytes           BigInt?
+  estimatedProviderCostUsd Decimal @default(0) @db.Decimal(10, 4)
+  creditsCharged         Decimal  @default(0) @db.Decimal(10, 4)
+  createdAt              DateTime @default(now())
+
+  user    User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  channel Channel? @relation(fields: [channelId], references: [id], onDelete: SetNull)
+  episode Episode? @relation(fields: [episodeId], references: [id], onDelete: SetNull)
+
+  @@index([userId])
+  @@index([channelId])
+  @@index([createdAt])
+}
+
+model Plan {
+  id              String   @id @default(cuid())
+  name            String   @unique
+  priceUsd        Decimal  @db.Decimal(10, 2)
+  creditsPerMonth Int
+  features        Json     @default("[]")
+  isDefault       Boolean  @default(false)
+  createdAt       DateTime @default(now())
+
+  subscriptions Subscription[]
+}
+
+model Subscription {
+  id                     String             @id @default(cuid())
+  userId                 String
+  planId                 String
+  status                 SubscriptionStatus @default(ACTIVE)
+  billingProvider        String             @default("mock")
+  externalSubscriptionId String?            @unique
+  currentPeriodStart     DateTime           @default(now())
+  currentPeriodEnd       DateTime
+  createdAt              DateTime           @default(now())
+  updatedAt              DateTime           @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  plan Plan @relation(fields: [planId], references: [id])
+
+  @@index([userId])
+}
+
+model CreditWallet {
+  id        String   @id @default(cuid())
+  userId    String   @unique
+  balance   Decimal  @default(0) @db.Decimal(12, 4)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  user         User               @relation(fields: [userId], references: [id], onDelete: Cascade)
+  transactions CreditTransaction[]
+}
+
+model CreditTransaction {
+  id           String                @id @default(cuid())
+  walletId     String
+  type         CreditTransactionType
+  amount       Decimal               @db.Decimal(12, 4)
+  balanceAfter Decimal               @db.Decimal(12, 4)
+  description  String?
+  referenceId  String?
+  createdAt    DateTime              @default(now())
+
+  wallet CreditWallet @relation(fields: [walletId], references: [id], onDelete: Cascade)
+
+  @@index([walletId])
+  @@index([createdAt])
+}
+
+// =============================================================================
+// AUDIT
+// =============================================================================
+
+model AuditLog {
+  id         String   @id @default(cuid())
+  userId     String?
+  action     String
+  entityType String
+  entityId   String?
+  metadata   Json?
+  ipAddress  String?
+  createdAt  DateTime @default(now())
+
+  user User? @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  @@index([userId])
+  @@index([entityType, entityId])
+  @@index([createdAt])
+}

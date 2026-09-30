@@ -1,0 +1,62 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --background: 240 25% 98%;
+  --foreground: 240 10% 12%;
+  --card: 0 0% 100%;
+  --card-foreground: 240 10% 12%;
+  --primary: 258 90% 58%;
+  --primary-foreground: 0 0% 100%;
+  --secondary: 240 20% 95%;
+  --secondary-foreground: 240 10% 20%;
+  --muted: 240 15% 95%;
+  --muted-foreground: 240 8% 46%;
+  --accent: 25 95% 60%;
+  --accent-foreground: 0 0% 100%;
+  --destructive: 0 72% 51%;
+  --destructive-foreground: 0 0% 100%;
+  --success: 152 60% 40%;
+  --success-foreground: 0 0% 100%;
+  --border: 240 15% 89%;
+  --input: 240 15% 89%;
+  --ring: 258 90% 58%;
+  --radius: 0.75rem;
+}
+
+.dark {
+  --background: 240 20% 8%;
+  --foreground: 240 10% 95%;
+  --card: 240 18% 11%;
+  --card-foreground: 240 10% 95%;
+  --primary: 258 90% 66%;
+  --primary-foreground: 240 20% 8%;
+  --secondary: 240 15% 16%;
+  --secondary-foreground: 240 10% 90%;
+  --muted: 240 15% 15%;
+  --muted-foreground: 240 8% 62%;
+  --accent: 25 95% 60%;
+  --accent-foreground: 240 20% 8%;
+  --destructive: 0 72% 55%;
+  --destructive-foreground: 0 0% 100%;
+  --success: 152 55% 48%;
+  --success-foreground: 240 20% 8%;
+  --border: 240 15% 20%;
+  --input: 240 15% 20%;
+  --ring: 258 90% 66%;
+}
+
+* {
+  border-color: hsl(var(--border));
+}
+
+body {
+  background-color: hsl(var(--background));
+  color: hsl(var(--foreground));
+}
+
+.bg-gradient-hero {
+  background: radial-gradient(circle at 20% 0%, hsl(258 90% 58% / 0.15), transparent 45%),
+    radial-gradient(circle at 80% 10%, hsl(25 95% 60% / 0.12), transparent 40%);
+}

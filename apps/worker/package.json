@@ -1,0 +1,35 @@
+{
+  "name": "@channelbase/worker",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "dotenv -e ../../.env -- tsx watch src/index.ts",
+    "build": "tsc -p tsconfig.json",
+    "start": "dotenv -e ../../.env -- node dist/index.js",
+    "typecheck": "tsc --noEmit",
+    "lint": "echo 'no lint configured'",
+    "test": "vitest run",
+    "clean": "rimraf dist"
+  },
+  "dependencies": {
+    "@channelbase/ai": "workspace:*",
+    "@channelbase/channel-brain": "workspace:*",
+    "@channelbase/config": "workspace:*",
+    "@channelbase/database": "workspace:*",
+    "@channelbase/logger": "workspace:*",
+    "@channelbase/production": "workspace:*",
+    "@channelbase/providers": "workspace:*",
+    "@channelbase/shared": "workspace:*",
+    "bullmq": "^5.34.0",
+    "ioredis": "^5.4.1"
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.0",
+    "dotenv-cli": "^7.4.4",
+    "rimraf": "^6.0.1",
+    "tsx": "^4.19.2",
+    "typescript": "^5.7.2",
+    "vitest": "^2.1.8"
+  }
+}
